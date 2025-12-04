@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head><title>我的票券夾</title></head>
+<body>
+    <h1>我的票券</h1>
+    <div id="ticket-list"></div>
+
+    <script>
+        fetch('/api/my_tickets')
+        .then(res => res.json())
+        .then(data => {
+            const list = document.getElementById('ticket-list');
+            if (data.error) {
+                list.innerHTML = `<p style="color:red">請先登入</p>`;
+                return;
+            }
+            
+            data.forEach(ticket => {
+                list.innerHTML += `
+                    <div style="border:1px solid #ccc; margin:10px; padding:10px;">
+                        <h3>${ticket.exhibition}</h3>
+                        <p>時間: ${ticket.time}</p>
+                        <p>票種: ${ticket.type}</p>
+                        <p><strong>QR Code 碼: ${ticket.uuid}</strong></p>
+                        <p>狀態: ${ticket.status}</p>
+                    </div>
+                `;
+            });
+        });
+    </script>
+    <a href="/">回首頁</a>
+</body>
+</html>

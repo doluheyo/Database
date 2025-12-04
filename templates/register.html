@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>會員註冊</title>
+</head>
+<body>
+    <h1>會員註冊</h1>
+    <form id="registerForm">
+        <div>
+            <label>姓名：</label>
+            <input type="text" id="name" required>
+        </div>
+        <div>
+            <label>Email：</label>
+            <input type="email" id="email" required>
+        </div>
+        <div>
+            <label>密碼：</label>
+            <input type="password" id="password" required>
+        </div>
+        <div>
+            <label>電話：</label>
+            <input type="text" id="phone" required>
+        </div>
+        <button type="submit">註冊</button>
+    </form>
+
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // 1. 阻止傳統表單跳轉
+
+            // 2. 蒐集資料
+            const formData = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                phone: document.getElementById('phone').value
+            };
+
+            // 3. 發送 POST 請求給 Server
+            fetch('/api/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData) // 轉成 JSON 字串
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert('註冊成功！');
+                    window.location.href = '/'; // 成功後跳轉回首頁
+                } else {
+                    alert('註冊失敗：' + (data.error || '未知錯誤'));
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+
+    <br>
+    <br>
+    <a href="/">回首頁</a>
+
+</body>
+</html>

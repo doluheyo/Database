@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>展覽購票系統 - 首頁</title>
+    <style>
+        /* 簡單的 CSS 美化 */
+        .exhibition-card { border: 1px solid #ddd; padding: 15px; margin: 10px; border-radius: 8px; }
+        .btn { background-color: #007bff; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px;}
+    </style>
+</head>
+<body>
+	
+    <div style="text-align: right; padding: 10px; background-color: #f8f9fa;">
+        {% if user_name %}
+            <span>Hi, <b>{{ user_name }}</b></span>
+            | 
+            <a href="/my_tickets_page">我的票券</a>
+            | 
+            <a href="/logout">登出</a>
+        {% else %}
+            <a href="/login_page">登入</a>
+            | 
+            <a href="/register_page">註冊</a>
+        {% endif %}
+        </div>
+    <h1>熱門展覽列表</h1>
+
+    <!--
+    <a href="/register_page">還沒帳號？去註冊</a>
+    <br>
+    <a href="/login_page">登入</a>
+    -->
+
+
+    
+    <div id="exhibition-list">
+        <p>載入中...</p>
+    </div>
+
+    <script>
+        // 當頁面載入完成後執行
+        document.addEventListener("DOMContentLoaded", function() {
+            // 1. 使用 fetch 向後端 API 請求資料
+            fetch('/api/exhibitions')
+                .then(response => response.json())
+                .then(data => {
+                    const listContainer = document.getElementById('exhibition-list');
+                    listContainer.innerHTML = ''; // 清空載入文字
+
+                    // 2. 針對每一筆展覽資料，產生 HTML
+                    data.forEach(exhibition => {
+                        const card = document.createElement('div');
+                        card.className = 'exhibition-card';
+                        card.innerHTML = `
+                            <h3>${exhibition.title}</h3>
+                            <p>日期：${exhibition.date_range}</p>
+                            <a href="/detail_page?id=${exhibition.id}" class="btn">查看詳情</a>
+                        `;
+                        listContainer.appendChild(card);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('exhibition-list').innerHTML = '<p>載入失敗，請檢查 Server。</p>';
+                });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head><title>展覽詳情</title></head>
+<body>
+    <h1 id="title">載入中...</h1>
+    <p id="desc"></p>
+    
+    <h3>選擇場次：</h3>
+    <select id="session_select"></select>
+    
+    <h3>選擇票種：</h3>
+    <select id="ticket_select"></select>
+    
+    <h3>數量：</h3>
+    <input type="number" id="quantity" value="1" min="1">
+    
+    <br><br>
+    <button onclick="buyTicket()">確認購票</button>
+
+    <script>
+        // 取得網址上的 id (例如 /detail_page?id=1)
+        const params = new URLSearchParams(window.location.search);
+        const exhibitionId = params.get('id');
+
+        // 1. 載入詳情
+        fetch(`/api/exhibitions/${exhibitionId}`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('title').innerText = data.title;
+            document.getElementById('desc').innerText = data.description;
+
+            // 填入場次選單
+            const sessionSelect = document.getElementById('session_select');
+            data.sessions.forEach(s => {
+                sessionSelect.innerHTML += `<option value="${s.id}">${s.time} (剩餘:${s.capacity})</option>`;
+            });
+
+            // 填入票種選單
+            const ticketSelect = document.getElementById('ticket_select');
+            data.ticket_types.forEach(t => {
+                ticketSelect.innerHTML += `<option value="${t.id}">${t.name} ($${t.price})</option>`;
+            });
+        });
+
+        // 2. 執行購票
+        function buyTicket() {
+            const orderData = {
+                items: [{
+                    session_id: document.getElementById('session_select').value,
+                    ticket_type_id: document.getElementById('ticket_select').value,
+                    quantity: parseInt(document.getElementById('quantity').value)
+                }]
+            };
+
+            fetch('/api/create_order', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(orderData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.message) {
+                    alert('購票成功！訂單ID: ' + data.order_id);
+                    window.location.href = '/my_tickets_page'; // 跳轉到我的票券
+                } else {
+                    alert('失敗: ' + data.error);
+                }
+            });
+        }
+    </script>
+
+    <br>
+    <br>
+    <a href="/">回首頁</a>
+
+</body>
+</html>
