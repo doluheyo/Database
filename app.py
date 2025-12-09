@@ -2,6 +2,7 @@ import io
 import os
 import uuid
 import qrcode
+import pyodbc
 import pymysql.cursors
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
@@ -11,26 +12,24 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # 請修改為隨機字串以確保安全
 app.permanent_session_lifetime = timedelta(minutes=30)  # 設定閒置 30 分鐘自動登出
 
-# ==========================================
-# MySQL 資料庫連線設定
-# ==========================================
-DB_CONFIG = {
-    'host': '127.0.0.1',
-    'user': 'root',  # MySQL 預設帳號
-    'password': 'wendy940704',  # 【請填入你的 MySQL 密碼，若無則留空】
-    'database': 'ExhibitionTicketSystem',
-    'charset': 'utf8mb4',
-    'cursorclass': pymysql.cursors.DictCursor  # 讓查詢結果變成 Dictionary (例如 row['title'])
-}
-
 
 def get_db_connection():
     try:
-        return pymysql.connect(**DB_CONFIG)
+        return pyodbc.connect(
+            r'DRIVER={ODBC Driver 17 for SQL Server};'
+            r'SERVER=localhost\SQLEXPRESS;'
+            r'DATABASE=ExhibitionTicketSystem;'
+            r'UID=root;'
+            r'PWD=wendy940704;'
+        )
+        print("資料庫連線成功！")
     except Exception as e:
         print(f"資料庫連線失敗: {e}")
         return None
 
+def to_dict(cursor, row):
+    """將 pyodbc 的 Row 轉換成 Dictionary"""
+    return dict(zip([column[0] for column in cursor.description], row))
 
 # 輔助函式：檢查是否為管理員
 def is_admin():
@@ -59,13 +58,15 @@ def index():
         with conn.cursor() as cursor:
             if keyword:
                 # 搜尋標題或地點
-                sql = "SELECT * FROM Exhibitions WHERE status = 'Published' AND (title LIKE %s OR location LIKE %s)"
+                sql = "SELECT * FROM Exhibitions WHERE status = 'Published' AND (title LIKE ? OR location LIKE ?)"
                 search_term = f"%{keyword}%"
                 cursor.execute(sql, (search_term, search_term))
             else:
                 cursor.execute("SELECT * FROM Exhibitions WHERE status = 'Published'")
 
-            exhibitions = cursor.fetchall()
+            rows = cursor.fetchall()
+            # ★ 補上轉換邏輯：將 List of Tuples 轉為 List of Dicts
+            exhibitions = [to_dict(cursor, row) for row in rows]
 
         # ★ 傳入 now 讓前端判斷是否顯示「已結束」
         return render_template('index.html', exhibitions=exhibitions, keyword=keyword, now=datetime.now())
@@ -93,7 +94,7 @@ def register():
             with conn.cursor() as cursor:
                 # 預設 role 為 'user'
                 cursor.execute(
-                    "INSERT INTO Members (name, email, password_hash, phone, role) VALUES (%s, %s, %s, %s, 'user')",
+                    "INSERT INTO Members (name, email, password_hash, phone, role) VALUES (?, ?, ?, ?, 'user')",
                     (name, email, hashed_pw, phone)
                 )
             conn.commit()
@@ -117,8 +118,11 @@ def login():
         conn = get_db_connection()
         try:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM Members WHERE email = %s", (email,))
+                cursor.execute("SELECT * FROM Members WHERE email = ?", (email,))
                 user = cursor.fetchone()
+                if user:  # 如果有抓到資料，就轉成字典
+                    columns = [column[0] for column in cursor.description]
+                    user = dict(zip(columns, user))
 
             if user and check_password_hash(user['password_hash'], password):
                 # 登入成功，設定 Session
@@ -173,12 +177,12 @@ def detail(id):
                     SELECT S.session_time, E.end_date 
                     FROM Sessions S
                     JOIN Exhibitions E ON S.exhibition_id = E.exhibition_id
-                    WHERE S.session_id = %s
+                    WHERE S.session_id = ?
                 """
                 cursor.execute(sql, (session_id,))
                 row = cursor.fetchone()
-
-                if not row:
+                if row: row = to_dict(cursor, row)  # 一行搞定轉換
+                else:
                     flash("❌ 錯誤：找不到場次資訊")
                     return redirect(request.url)
 
@@ -213,14 +217,24 @@ def detail(id):
                 return redirect(url_for('index'))
 
             # === GET: 顯示頁面 ===
-            cursor.execute("SELECT * FROM Exhibitions WHERE exhibition_id = %s", (id,))
+            cursor.execute("SELECT * FROM Exhibitions WHERE exhibition_id = ?", (id,))
             exhibition = cursor.fetchone()
+            if exhibition:  # 如果有抓到資料，就轉成字典
+                columns = [column[0] for column in cursor.description]
+                exhibition = dict(zip(columns, exhibition))
 
-            cursor.execute("SELECT * FROM Sessions WHERE exhibition_id = %s ORDER BY session_time", (id,))
+
+            cursor.execute("SELECT * FROM Sessions WHERE exhibition_id = ? ORDER BY session_time", (id,))
             sessions = cursor.fetchall()
+            if sessions:
+                columns = [column[0] for column in cursor.description]
+                sessions = [dict(zip(columns, row)) for row in sessions]
 
-            cursor.execute("SELECT * FROM TicketTypes WHERE exhibition_id = %s", (id,))
+            cursor.execute("SELECT * FROM TicketTypes WHERE exhibition_id = ?", (id,))
             ticket_types = cursor.fetchall()
+            if ticket_types:
+                columns = [column[0] for column in cursor.description]
+                ticket_types = [dict(zip(columns, row)) for row in ticket_types]
 
             if not exhibition: return "找不到該展覽", 404
 
@@ -268,13 +282,17 @@ def checkout():
             total_amount = sum(item['price'] for item in cart)
 
             # 1. 建立訂單
-            cursor.execute("INSERT INTO Orders (member_id, total_amount, status) VALUES (%s, %s, 'Paid')",
+            cursor.execute("SET NOCOUNT ON; INSERT INTO Orders (member_id, total_amount, status) VALUES (?, ?, 'Paid'); SELECT SCOPE_IDENTITY()",
                            (session['user_id'], total_amount))
-            order_id = cursor.lastrowid  # MySQL 取得 ID 的方式
+            result = cursor.fetchone()  # 用 fetchone() 取得剛產生的 ID
+            if result:
+                order_id = int(result[0])
+            else:
+                raise Exception("無法取得訂單 ID")
 
             # 2. 建立支付紀錄
             cursor.execute(
-                "INSERT INTO Payments (order_id, payment_method, amount, status) VALUES (%s, 'Credit Card', %s, 'Success')",
+                "INSERT INTO Payments (order_id, payment_method, amount, status) VALUES (?, 'Credit Card', ?, 'Success')",
                 (order_id, total_amount))
 
             # 3. 處理每一張票 (扣庫存 + 建票)
@@ -286,7 +304,7 @@ def checkout():
                 cursor.execute("""
                     UPDATE Sessions 
                     SET capacity = capacity - 1 
-                    WHERE session_id = %s AND capacity > 0
+                    WHERE session_id = ? AND capacity > 0
                 """, (session_id,))
 
                 if cursor.rowcount == 0:
@@ -295,7 +313,7 @@ def checkout():
                 ticket_uuid = str(uuid.uuid4())
                 cursor.execute("""
                     INSERT INTO Tickets (ticket_uuid, order_id, ticket_type_id, session_id, status)
-                    VALUES (%s, %s, %s, %s, 'Unused')
+                    VALUES (?, ?, ?, ?, 'Unused')
                 """, (ticket_uuid, order_id, ticket_type_id, session_id))
 
         conn.commit()
@@ -326,7 +344,7 @@ def my_tickets():
                 JOIN TicketTypes TT ON T.ticket_type_id = TT.ticket_type_id
                 JOIN Sessions S ON T.session_id = S.session_id
                 JOIN Exhibitions E ON TT.exhibition_id = E.exhibition_id
-                WHERE O.member_id = %s
+                WHERE O.member_id = ?
                 ORDER BY O.order_date DESC
             """
             cursor.execute(sql, (session['user_id'],))
@@ -364,12 +382,12 @@ def api_use_ticket():
                 FROM Tickets T
                 JOIN TicketTypes TT ON T.ticket_type_id = TT.ticket_type_id
                 JOIN Exhibitions E ON TT.exhibition_id = E.exhibition_id
-                WHERE T.ticket_uuid = %s
+                WHERE T.ticket_uuid = ?
             """
             cursor.execute(sql, (uuid,))
             row = cursor.fetchone()
-
-            if not row: return {"success": False, "message": "找不到票券"}, 404
+            if row: row = to_dict(cursor, row)
+            else: return {"success": False, "message": "找不到票券"}, 404
 
             if row['status'] == 'Used':
                 return {"success": False, "message": "此票券已經使用過了"}
@@ -377,7 +395,8 @@ def api_use_ticket():
             if input_pin != row['validation_pin']:
                 return {"success": False, "message": "核銷碼錯誤"}
 
-            cursor.execute("UPDATE Tickets SET status = 'Used', used_at = NOW() WHERE ticket_uuid = %s", (uuid,))
+            # 用 GETDATE() 取得當前時間
+            cursor.execute("UPDATE Tickets SET status = 'Used', used_at = GETDATE() WHERE ticket_uuid = ?", (uuid,))
             conn.commit()
             return {"success": True, "message": "驗證成功，歡迎入場！"}
     except Exception as e:
@@ -402,7 +421,10 @@ def admin_dashboard():
     try:
         with conn.cursor() as cursor:
             cursor.execute("SELECT * FROM Exhibitions ORDER BY exhibition_id DESC")
-            exhibitions = cursor.fetchall()
+            
+            rows = cursor.fetchall()
+            # ★ 補上轉換邏輯
+            exhibitions = [to_dict(cursor, row) for row in rows]
         return render_template('admin/dashboard.html', exhibitions=exhibitions)
     finally:
         conn.close()
@@ -419,19 +441,19 @@ def admin_create_exhibition():
             if request.method == 'POST':
                 # 1. 處理主辦單位 (輸入名稱 -> 自動判斷ID)
                 org_name = request.form['organizer_name'].strip()
-                cursor.execute("SELECT organizer_id FROM Organizers WHERE name = %s", (org_name,))
+                cursor.execute("SELECT organizer_id FROM Organizers WHERE name = ?", (org_name,))
                 existing_org = cursor.fetchone()
 
                 if existing_org:
-                    organizer_id = existing_org['organizer_id']
+                    organizer_id = existing_org[0]
                 else:
-                    cursor.execute("INSERT INTO Organizers (name) VALUES (%s)", (org_name,))
-                    organizer_id = cursor.lastrowid
+                    cursor.execute("SET NOCOUNT ON; INSERT INTO Organizers (name) VALUES (?); SELECT SCOPE_IDENTITY()", (org_name,))
+                    organizer_id = int(cursor.fetchone()[0])  # 用 fetchone() 取 ID
 
                 # 2. 新增展覽
                 cursor.execute("""
                     INSERT INTO Exhibitions (organizer_id, title, location, description, start_date, end_date, status, validation_pin)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     organizer_id,
                     request.form['title'],
@@ -465,9 +487,9 @@ def admin_edit_exhibition(id):
             if request.method == 'POST':
                 cursor.execute("""
                     UPDATE Exhibitions 
-                    SET title=%s, location=%s, description=%s, 
-                        start_date=%s, end_date=%s, status=%s, validation_pin=%s
-                    WHERE exhibition_id=%s
+                    SET title=?, location=?, description=?, 
+                        start_date=?, end_date=?, status=?, validation_pin=?
+                    WHERE exhibition_id=?
                 """, (
                     request.form['title'], request.form['location'], request.form['description'],
                     request.form['start_date'], request.form['end_date'], request.form['status'],
@@ -482,10 +504,13 @@ def admin_edit_exhibition(id):
                 SELECT E.*, O.name as organizer_name 
                 FROM Exhibitions E
                 LEFT JOIN Organizers O ON E.organizer_id = O.organizer_id
-                WHERE E.exhibition_id = %s
+                WHERE E.exhibition_id = ?
             """
             cursor.execute(sql, (id,))
             exhibition = cursor.fetchone()
+            if exhibition:  # 如果有抓到資料，就轉成字典
+                columns = [column[0] for column in cursor.description]
+                exhibition = dict(zip(columns, exhibition))
 
             if not exhibition:
                 flash('找不到該展覽')
@@ -507,27 +532,48 @@ def admin_manage_exhibition(id):
             if request.method == 'POST':
                 # 新增場次
                 if 'add_session' in request.form:
-                    cursor.execute("INSERT INTO Sessions (exhibition_id, session_time, capacity) VALUES (%s, %s, %s)",
-                                   (id, request.form['session_time'], request.form['capacity']))
+                    # 將前端格式: "2025-12-31T19:30" ->改成 資料庫格式: "2025-12-31 19:30:00"
+                    s_time = request.form['session_time']
+                    if 'T' in s_time:
+                        s_time = s_time.replace('T', ' ')
+                    if len(s_time) == 16: # 如果長度只有到分鐘
+                        s_time += ':00'   # 補上秒數
+
+                    cursor.execute("INSERT INTO Sessions (exhibition_id, session_time, capacity) VALUES (?, ?, ?)",
+                                   (id, s_time, request.form['capacity']))
                     flash('場次已新增')
 
                 # 新增票種
                 if 'add_ticket_type' in request.form:
-                    cursor.execute("INSERT INTO TicketTypes (exhibition_id, name, price) VALUES (%s, %s, %s)",
+                    cursor.execute("INSERT INTO TicketTypes (exhibition_id, name, price) VALUES (?, ?, ?)",
                                    (id, request.form['name'], request.form['price']))
                     flash('票種已新增')
                 conn.commit()
 
-            cursor.execute("SELECT * FROM Exhibitions WHERE exhibition_id = %s", (id,))
+            cursor.execute("SELECT * FROM Exhibitions WHERE exhibition_id = ?", (id,))
             exhibition = cursor.fetchone()
-            cursor.execute("SELECT * FROM Sessions WHERE exhibition_id = %s", (id,))
+            if exhibition:  # 如果有抓到資料，就轉成字典
+                columns = [column[0] for column in cursor.description]
+                exhibition = dict(zip(columns, exhibition))
+
+            cursor.execute("SELECT * FROM Sessions WHERE exhibition_id = ?", (id,))
             sessions = cursor.fetchall()
-            cursor.execute("SELECT * FROM TicketTypes WHERE exhibition_id = %s", (id,))
+            if sessions:
+                columns = [column[0] for column in cursor.description]
+                sessions = [dict(zip(columns, row)) for row in sessions]
+
+            cursor.execute("SELECT * FROM TicketTypes WHERE exhibition_id = ?", (id,))
             ticket_types = cursor.fetchall()
+            if ticket_types:
+                columns = [column[0] for column in cursor.description]
+                ticket_types = [dict(zip(columns, row)) for row in ticket_types]
+            
             return render_template('admin/manage.html', ex=exhibition, sessions=sessions, types=ticket_types)
     finally:
         conn.close()
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # host='0.0.0.0' 表示監聽這台機器所有的 IP (包含外網 IP)
+    # port=5000 是網站運作的埠號
+    app.run(host='0.0.0.0', port=5000, debug=True)
