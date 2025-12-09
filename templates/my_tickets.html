@@ -1,33 +1,197 @@
-<!DOCTYPE html>
-<html>
-<head><title>我的票券夾</title></head>
-<body>
-    <h1>我的票券</h1>
-    <div id="ticket-list"></div>
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-ticket-perforated-fill text-primary"></i> 我的票券夾</h2>
 
-    <script>
-        fetch('/api/my_tickets')
-        .then(res => res.json())
-        .then(data => {
-            const list = document.getElementById('ticket-list');
-            if (data.error) {
-                list.innerHTML = `<p style="color:red">請先登入</p>`;
-                return;
-            }
-            
-            data.forEach(ticket => {
-                list.innerHTML += `
-                    <div style="border:1px solid #ccc; margin:10px; padding:10px;">
-                        <h3>${ticket.exhibition}</h3>
-                        <p>時間: ${ticket.time}</p>
-                        <p>票種: ${ticket.type}</p>
-                        <p><strong>QR Code 碼: ${ticket.uuid}</strong></p>
-                        <p>狀態: ${ticket.status}</p>
+<div class="row">
+    {% for t in tickets %}
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100 border-0 hover-card">
+            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ t.title }}</h5>
+                <small class="text-white-50">#{{ loop.index }}</small>
+            </div>
+
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <small class="text-muted"><i class="bi bi-clock"></i> 場次時間</small>
+                        <p class="fw-bold mb-0">{{ t.session_time }}</p>
                     </div>
-                `;
-            });
+                    <div class="text-end">
+                        <small class="text-muted"><i class="bi bi-person"></i> 票種</small>
+                        <p class="fw-bold mb-0">{{ t.name }}</p>
+                    </div>
+                </div>
+
+                <hr class="border-secondary border-opacity-25">
+
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <span id="status-badge-{{ t.ticket_uuid }}"
+                          class="badge rounded-pill fs-6 px-3 py-2
+                          {{ 'bg-secondary' if t.status == 'Used' else 'bg-success' }}">
+                        {{ '已使用' if t.status == 'Used' else '可使用' }}
+                    </span>
+
+                    <button type="button"
+                            id="btn-{{ t.ticket_uuid }}"
+                            class="btn {{ 'btn-secondary' if t.status == 'Used' else 'btn-outline-primary' }} px-4 shadow-sm"
+                            {{ 'disabled' if t.status == 'Used' else '' }}
+                            onclick="openValidationModal('{{ t.ticket_uuid }}')">
+
+                        {% if t.status == 'Used' %}
+                            <i class="bi bi-check-circle-fill"></i> 已核銷
+                        {% else %}
+                            <i class="bi bi-qr-code-scan"></i> 點此使用
+                        {% endif %}
+                    </button>
+                </div>
+
+                <div class="mt-3 text-center">
+                    <small class="text-muted user-select-all" style="font-size: 0.8em;">ID: {{ t.ticket_uuid }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center py-5">
+        <div class="text-muted mb-3" style="font-size: 3rem;"><i class="bi bi-ticket-detailed"></i></div>
+        <h3>您還沒有購買任何票券</h3>
+        <a href="/" class="btn btn-primary mt-3">前往首頁購票</a>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="validationModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-shield-lock-fill"></i> 工作人員核銷</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p class="mb-3 text-muted">請將手機交給現場工作人員，輸入核銷碼</p>
+
+                <div class="form-floating mb-3 w-75 mx-auto">
+                    <input type="password"
+                           class="form-control text-center fs-3 letter-spacing-2 fw-bold text-primary"
+                           id="staffPinInput"
+                           placeholder="PIN"
+                           maxlength="10"
+                           autocomplete="off"
+                           inputmode="numeric">
+                    <label for="staffPinInput">輸入 PIN 碼 (預設: 1234)</label>
+                </div>
+
+                <div id="errorMsg" class="text-danger fw-bold small" style="min-height: 20px;"></div>
+            </div>
+            <div class="modal-footer justify-content-center bg-light">
+                <button type="button" class="btn btn-lg btn-primary w-100 shadow-sm" onclick="submitValidation()">
+                    確認核銷 <i class="bi bi-arrow-right-circle"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 定義全域變數
+    let validationModal = null;
+    let currentUuid = '';
+
+    // 取得 DOM 元素
+    const pinInput = document.getElementById('staffPinInput');
+    const errorMsg = document.getElementById('errorMsg');
+
+    // ★ 關鍵修正：等待 HTML 全部載入完成後，才初始化 Modal
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalEl = document.getElementById('validationModal');
+
+        // 檢查 Bootstrap 是否正確載入
+        if (typeof bootstrap !== 'undefined' && modalEl) {
+            validationModal = new bootstrap.Modal(modalEl);
+            console.log("Modal 初始化成功");
+        } else {
+            console.error("Bootstrap JS 未載入，或找不到 Modal 元素");
+            alert("系統錯誤：視窗元件載入失敗，請檢查 layout.html 是否有引入 bootstrap.js");
+        }
+    });
+
+    // 1. 打開核銷視窗
+    function openValidationModal(uuid) {
+        if (!validationModal) {
+            alert("系統正在載入中，請稍後再試...");
+            return;
+        }
+        currentUuid = uuid;
+        pinInput.value = '';
+        errorMsg.innerText = '';
+        pinInput.classList.remove('is-invalid');
+
+        validationModal.show();
+
+        // 延遲聚焦，提升手機版體驗
+        setTimeout(() => pinInput.focus(), 500);
+    }
+
+    // 2. 送出驗證
+    function submitValidation() {
+        const pin = pinInput.value;
+        if (!pin) {
+            errorMsg.innerText = "請輸入核銷碼";
+            return;
+        }
+
+        // 呼叫後端 API
+        fetch('/api/use_ticket', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid: currentUuid, pin: pin })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // A. 驗證成功
+                validationModal.hide();
+                alert("✅ " + data.message);
+
+                // 更新按鈕狀態 (免重新整理)
+                const btn = document.getElementById('btn-' + currentUuid);
+                const badge = document.getElementById('status-badge-' + currentUuid);
+
+                if(btn) {
+                    btn.className = 'btn btn-secondary px-4 shadow-sm';
+                    btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> 已核銷';
+                    btn.disabled = true;
+                }
+                if(badge) {
+                    badge.className = 'badge rounded-pill fs-6 px-3 py-2 bg-secondary';
+                    badge.innerText = '已使用';
+                }
+            } else {
+                // B. 驗證失敗
+                errorMsg.innerText = "❌ " + data.message;
+                pinInput.classList.add('is-invalid');
+                pinInput.value = ''; // 清空錯誤密碼
+                pinInput.focus();
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            errorMsg.innerText = "❌ 連線錯誤，請稍後再試";
         });
-    </script>
-    <a href="/">回首頁</a>
-</body>
-</html>
+    }
+</script>
+
+<style>
+    /* 文字間距優化 */
+    .letter-spacing-2 {
+        letter-spacing: 4px;
+    }
+    .hover-card {
+        transition: transform 0.2s;
+    }
+    .hover-card:hover {
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}

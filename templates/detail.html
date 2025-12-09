@@ -1,77 +1,238 @@
-<!DOCTYPE html>
-<html>
-<head><title>展覽詳情</title></head>
-<body>
-    <h1 id="title">載入中...</h1>
-    <p id="desc"></p>
-    
-    <h3>選擇場次：</h3>
-    <select id="session_select"></select>
-    
-    <h3>選擇票種：</h3>
-    <select id="ticket_select"></select>
-    
-    <h3>數量：</h3>
-    <input type="number" id="quantity" value="1" min="1">
-    
-    <br><br>
-    <button onclick="buyTicket()">確認購票</button>
+{% extends "layout.html" %}
+{% block content %}
 
-    <script>
-        // 取得網址上的 id (例如 /detail_page?id=1)
-        const params = new URLSearchParams(window.location.search);
-        const exhibitionId = params.get('id');
+<!-- 頁面標題區 -->
+<div class="mb-4">
+    <h1 class="fw-bold">{{ ex.title }}</h1>
+    <div class="text-muted">
+        <i class="bi bi-geo-alt-fill me-1"></i> {{ ex.location }}
+        <span class="mx-2">|</span>
+        <i class="bi bi-calendar-event me-1"></i> {{ ex.start_date }} ~ {{ ex.end_date }}
+    </div>
+</div>
 
-        // 1. 載入詳情
-        fetch(`/api/exhibitions/${exhibitionId}`)
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById('title').innerText = data.title;
-            document.getElementById('desc').innerText = data.description;
+<div class="row">
+    <!-- 左側：展覽說明 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h5 class="card-title fw-bold border-bottom pb-2 mb-3">活動介紹</h5>
+                <p class="card-text" style="white-space: pre-line; line-height: 1.8;">{{ ex.description }}</p>
+            </div>
+        </div>
+    </div>
 
-            // 填入場次選單
-            const sessionSelect = document.getElementById('session_select');
-            data.sessions.forEach(s => {
-                sessionSelect.innerHTML += `<option value="${s.id}">${s.time} (剩餘:${s.capacity})</option>`;
-            });
+    <!-- 右側：購票區塊 -->
+    <div class="col-lg-4">
+        {% set is_exhibition_expired = ex.end_date < now.date() %}
 
-            // 填入票種選單
-            const ticketSelect = document.getElementById('ticket_select');
-            data.ticket_types.forEach(t => {
-                ticketSelect.innerHTML += `<option value="${t.id}">${t.name} ($${t.price})</option>`;
-            });
-        });
+        <div class="card shadow border-0 {{ 'bg-secondary bg-opacity-10' if is_exhibition_expired else 'bg-white' }}">
+            <div class="card-body p-4">
 
-        // 2. 執行購票
-        function buyTicket() {
-            const orderData = {
-                items: [{
-                    session_id: document.getElementById('session_select').value,
-                    ticket_type_id: document.getElementById('ticket_select').value,
-                    quantity: parseInt(document.getElementById('quantity').value)
-                }]
-            };
+                {% if is_exhibition_expired %}
+                    <div class="alert alert-danger fw-bold text-center mb-4">
+                        <i class="bi bi-calendar-x-fill me-2"></i> 此展覽活動已結束
+                    </div>
+                {% else %}
+                    <h4 class="mb-4 fw-bold text-primary"><i class="bi bi-ticket-perforated me-2"></i>選購票券</h4>
+                {% endif %}
 
-            fetch('/api/create_order', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(orderData)
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.message) {
-                    alert('購票成功！訂單ID: ' + data.order_id);
-                    window.location.href = '/my_tickets_page'; // 跳轉到我的票券
-                } else {
-                    alert('失敗: ' + data.error);
-                }
-            });
+                <form method="POST" action="/exhibition/{{ ex.exhibition_id }}">
+                    <input type="hidden" name="exhibition_title" value="{{ ex.title }}">
+
+                    <!-- 1. 選擇場次 -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">選擇場次</label>
+                        <select name="session_id" id="sessionSelect" class="form-select" onchange="updateSessionInfo()" {{ 'disabled' if is_exhibition_expired }}>
+                            {% for s in sessions %}
+                                {% set is_session_expired = s.session_time < now %}
+                                <option value="{{ s.session_id }}"
+                                        data-time="{{ s.session_time }}"
+                                        data-capacity="{{ s.capacity }}"
+                                        {% if is_session_expired %}disabled{% endif %}>
+                                    {{ s.session_time }}
+                                    {% if is_session_expired %} (已過期)
+                                    {% elif s.capacity <= 0 %} (已額滿)
+                                    {% else %} (剩餘: {{ s.capacity }} 席)
+                                    {% endif %}
+                                </option>
+                            {% else %}
+                                <option disabled selected>暫無場次資訊</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="session_time_str" id="sessionTimeStr">
+                    </div>
+
+                    <!-- 2. 選擇票種 -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">選擇票種</label>
+                        <select name="ticket_type" class="form-select" id="ticketSelect" onchange="updatePrice()" {{ 'disabled' if is_exhibition_expired }}>
+                            {% for t in types %}
+                            <option value="{{ t.ticket_type_id }}" data-price="{{ t.price }}" data-name="{{ t.name }}">
+                                {{ t.name }} - ${{ t.price | int }}
+                            </option>
+                            {% else %}
+                                <option disabled selected>暫無票價資訊</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" name="price" id="priceInput">
+                        <input type="hidden" name="ticket_name" id="ticketNameInput">
+                    </div>
+
+                    <!-- 3. 選擇數量 -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">購買數量</label>
+                        <div class="d-flex align-items-center">
+                            <div class="input-group" style="width: 160px;">
+                                <!-- 減號按鈕 -->
+                                <button class="btn btn-outline-secondary" type="button" onclick="changeQty(-1)" {{ 'disabled' if is_exhibition_expired }}>
+                                    <i class="bi bi-dash"></i>
+                                </button>
+
+                                <!-- 輸入框 -->
+                                <input type="number"
+                                       name="quantity"
+                                       id="quantityInput"
+                                       class="form-control text-center fw-bold"
+                                       value="1"
+                                       min="1"
+                                       onchange="validateQty()"
+                                       {{ 'disabled' if is_exhibition_expired }}>
+
+                                <!-- 加號按鈕 -->
+                                <button class="btn btn-outline-secondary" type="button" onclick="changeQty(1)" {{ 'disabled' if is_exhibition_expired }}>
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                            <div id="stock-warning" class="ms-3 small fw-bold"></div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" id="addToCartBtn"
+                                class="btn {{ 'btn-secondary' if is_exhibition_expired else 'btn-warning' }} btn-lg shadow-sm fw-bold"
+                                {{ 'disabled' if is_exhibition_expired }}>
+                            {{ '展覽已結束' if is_exhibition_expired else '加入購物車 🛒' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-4 p-3 bg-light rounded text-muted small">
+            <h6><i class="bi bi-info-circle me-1"></i> 購票須知</h6>
+            <ul class="mb-0 ps-3">
+                <li>請於入場前出示手機進行核銷。</li>
+                <li>票券售出後，若需退票請聯繫主辦單位。</li>
+                <li>請確認場次時間，逾期無效。</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    var isExhibitionExpired = {{ 'true' if is_exhibition_expired else 'false' }};
+
+    function updatePrice() {
+        var select = document.getElementById('ticketSelect');
+        if(select.options.length > 0 && select.selectedIndex !== -1) {
+            var option = select.options[select.selectedIndex];
+            document.getElementById('priceInput').value = option.getAttribute('data-price');
+            document.getElementById('ticketNameInput').value = option.getAttribute('data-name');
         }
-    </script>
+    }
 
-    <br>
-    <br>
-    <a href="/">回首頁</a>
+    function updateSessionInfo() {
+        var btn = document.getElementById('addToCartBtn');
 
-</body>
-</html>
+        if (isExhibitionExpired) {
+            btn.disabled = true;
+            btn.className = "btn btn-secondary btn-lg fw-bold";
+            btn.innerText = "展覽已結束";
+            return;
+        }
+
+        var select = document.getElementById('sessionSelect');
+        var warning = document.getElementById('stock-warning');
+        var qtyInput = document.getElementById('quantityInput');
+
+        if(select.selectedIndex === -1 || select.options.length === 0) {
+            btn.disabled = true;
+            if(select.options.length === 0) btn.innerText = "暫無場次";
+            warning.innerText = "";
+            return;
+        }
+
+        var option = select.options[select.selectedIndex];
+
+        if (option.disabled) {
+            btn.disabled = true;
+            btn.className = "btn btn-secondary btn-lg fw-bold";
+            btn.innerText = "場次已過期";
+            warning.innerText = "❌ 時間已過";
+            warning.className = "ms-3 small fw-bold text-danger";
+            qtyInput.value = 0;
+            qtyInput.disabled = true;
+            return;
+        } else {
+            qtyInput.disabled = false;
+        }
+
+        var capacity = parseInt(option.getAttribute('data-capacity'));
+        var timeStr = option.getAttribute('data-time');
+
+        document.getElementById('sessionTimeStr').value = timeStr;
+        qtyInput.max = capacity;
+
+        if (capacity <= 0) {
+            btn.disabled = true;
+            btn.className = "btn btn-secondary btn-lg fw-bold";
+            btn.innerText = "已售完 (Sold Out)";
+            qtyInput.value = 0;
+            warning.innerText = "❌ 已額滿";
+            warning.className = "ms-3 small fw-bold text-danger";
+        } else {
+            btn.disabled = false;
+            btn.className = "btn btn-warning btn-lg shadow-sm fw-bold";
+            btn.innerText = "加入購物車 🛒";
+            warning.innerText = "✅ 剩餘 " + capacity + " 張";
+            warning.className = "ms-3 small fw-bold text-success";
+
+            validateQty();
+        }
+    }
+
+    function validateQty() {
+        var input = document.getElementById('quantityInput');
+        var max = parseInt(input.max);
+        var val = parseInt(input.value);
+
+        if (isNaN(val) || val < 1) {
+            input.value = 1;
+        } else if (val > max) {
+            input.value = max;
+        }
+    }
+
+    function changeQty(delta) {
+        if (isExhibitionExpired) return;
+
+        var input = document.getElementById('quantityInput');
+        var max = parseInt(input.max);
+
+        if (isNaN(max) || max <= 0) return;
+
+        var currentVal = parseInt(input.value) || 0;
+        var newVal = currentVal + delta;
+
+        if (newVal >= 1 && newVal <= max) {
+            input.value = newVal;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        updatePrice();
+        updateSessionInfo();
+    });
+</script>
+{% endblock %}

@@ -1,71 +1,129 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>展覽購票系統 - 首頁</title>
-    <style>
-        /* 簡單的 CSS 美化 */
-        .exhibition-card { border: 1px solid #ddd; padding: 15px; margin: 10px; border-radius: 8px; }
-        .btn { background-color: #007bff; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px;}
-    </style>
-</head>
-<body>
-	
-    <div style="text-align: right; padding: 10px; background-color: #f8f9fa;">
-        {% if user_name %}
-            <span>Hi, <b>{{ user_name }}</b></span>
-            | 
-            <a href="/my_tickets_page">我的票券</a>
-            | 
-            <a href="/logout">登出</a>
-        {% else %}
-            <a href="/login_page">登入</a>
-            | 
-            <a href="/register_page">註冊</a>
-        {% endif %}
-        </div>
-    <h1>熱門展覽列表</h1>
+{% extends "layout.html" %}
+{% block content %}
 
-    <!--
-    <a href="/register_page">還沒帳號？去註冊</a>
-    <br>
-    <a href="/login_page">登入</a>
-    -->
-
-
-    
-    <div id="exhibition-list">
-        <p>載入中...</p>
+<!-- Hero Banner 區塊 -->
+<div class="p-5 mb-5 bg-dark rounded-4 text-white d-flex align-items-center"
+     style="background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'); background-size: cover; background-position: center;">
+    <div class="py-5 px-3">
+        <h1 class="display-4 fw-bold">探索你的下一場冒險</h1>
+        <p class="col-md-8 fs-5 text-white-50">精選全台最熱門的藝術展覽、科技論壇與演唱會。立即預訂，輕鬆入場。</p>
+        <a href="#exhibition-list" class="btn btn-primary btn-lg mt-3 px-4 shadow-sm border-0">
+            瀏覽展覽 <i class="bi bi-arrow-down-short"></i>
+        </a>
     </div>
+</div>
 
-    <script>
-        // 當頁面載入完成後執行
-        document.addEventListener("DOMContentLoaded", function() {
-            // 1. 使用 fetch 向後端 API 請求資料
-            fetch('/api/exhibitions')
-                .then(response => response.json())
-                .then(data => {
-                    const listContainer = document.getElementById('exhibition-list');
-                    listContainer.innerHTML = ''; // 清空載入文字
+<!-- 搜尋框區塊 -->
+<div class="row justify-content-center mb-5" style="margin-top: -60px; position: relative; z-index: 10;">
+    <div class="col-md-8">
+        <div class="card shadow-lg border-0 rounded-4">
+            <div class="card-body p-3">
+                <form action="/" method="GET" class="d-flex">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-0 ps-3"><i class="bi bi-search text-muted"></i></span>
+                        <input class="form-control border-0 shadow-none ps-2" type="search" name="q" placeholder="搜尋展覽名稱或地點..." value="{{ keyword }}" aria-label="Search">
+                        <button class="btn btn-primary px-4 rounded-3 fw-bold" type="submit">搜尋</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-                    // 2. 針對每一筆展覽資料，產生 HTML
-                    data.forEach(exhibition => {
-                        const card = document.createElement('div');
-                        card.className = 'exhibition-card';
-                        card.innerHTML = `
-                            <h3>${exhibition.title}</h3>
-                            <p>日期：${exhibition.date_range}</p>
-                            <a href="/detail_page?id=${exhibition.id}" class="btn">查看詳情</a>
-                        `;
-                        listContainer.appendChild(card);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    document.getElementById('exhibition-list').innerHTML = '<p>載入失敗，請檢查 Server。</p>';
-                });
-        });
-    </script>
-</body>
-</html>
+{% if keyword %}
+<div class="alert alert-light mb-4 border-start border-4 border-primary shadow-sm">
+    <i class="bi bi-funnel-fill text-primary me-2"></i>搜尋 <strong>"{{ keyword }}"</strong> 的結果：
+    <a href="/" class="text-decoration-none small ms-2 text-muted"><i class="bi bi-x-circle"></i> 清除搜尋</a>
+</div>
+{% endif %}
+
+<div class="d-flex align-items-center mb-4 border-bottom pb-2" id="exhibition-list">
+    <h3 class="fw-bold mb-0 text-dark"><i class="bi bi-fire text-danger me-2"></i>熱門展覽</h3>
+</div>
+
+<div class="row">
+    {% for ex in exhibitions %}
+    <!-- ★ [新增] 判斷展覽是否已結束 (比較結束日期與今天) -->
+    <!-- 注意：now 是 datetime 物件，要轉成 .date() 才能跟資料庫的 Date 欄位比對 -->
+    {% set is_expired = ex.end_date < now.date() %}
+    {% set is_upcoming = ex.start_date > now.date() %}
+
+    <div class="col-md-4 mb-4">
+        <div class="card h-100 hover-card shadow-sm border-0">
+            <!-- 圖片區：如果過期，圖片加上灰階濾鏡效果 -->
+            <div class="position-relative overflow-hidden">
+                <img src="https://picsum.photos/seed/{{ ex.exhibition_id }}/400/250"
+                     class="card-img-top {{ 'grayscale-img' if is_expired else '' }}"
+                     alt="Exhibition Image"
+                     style="height: 200px; object-fit: cover;">
+
+                <!-- 狀態標籤 (Badge) -->
+                <div class="position-absolute top-0 start-0 m-3">
+                    {% if is_expired %}
+                        <span class="badge bg-dark bg-opacity-75 backdrop-blur shadow-sm">
+                            <i class="bi bi-stop-fill"></i> 已結束
+                        </span>
+                    {% elif is_upcoming %}
+                        <span class="badge bg-info text-dark bg-opacity-90 backdrop-blur shadow-sm">
+                            <i class="bi bi-clock-history"></i> 即將開始
+                        </span>
+                    {% else %}
+                        <span class="badge bg-danger bg-opacity-90 backdrop-blur shadow-sm">
+                            <i class="bi bi-check-circle-fill"></i> 現正熱賣
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title fw-bold text-dark mb-2 {{ 'text-muted' if is_expired else '' }}">
+                    {{ ex.title }}
+                </h5>
+
+                <div class="card-text text-muted small flex-grow-1 mb-3">
+                    <div class="mb-1"><i class="bi bi-geo-alt-fill text-danger me-2"></i>{{ ex.location }}</div>
+                    <div class="mb-1"><i class="bi bi-calendar-range me-2"></i>{{ ex.start_date }} ~ {{ ex.end_date }}</div>
+                </div>
+
+                <div class="d-grid mt-auto">
+                    {% if is_expired %}
+                        <a href="/exhibition/{{ ex.exhibition_id }}" class="btn btn-outline-secondary btn-sm">
+                            查看回顧
+                        </a>
+                    {% else %}
+                        <a href="/exhibition/{{ ex.exhibition_id }}" class="btn btn-outline-primary fw-bold">
+                            查看詳情 & 購票
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center py-5 text-muted">
+        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+        <p>目前沒有符合條件的展覽</p>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .hover-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+    }
+    /* 過期圖片變灰階 */
+    .grayscale-img {
+        filter: grayscale(100%);
+        opacity: 0.7;
+    }
+    /* 毛玻璃效果標籤 */
+    .backdrop-blur {
+        backdrop-filter: blur(4px);
+    }
+</style>
+
+{% endblock %}

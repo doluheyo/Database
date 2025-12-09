@@ -1,37 +1,35 @@
-<!DOCTYPE html>
-<html>
-<head><title>會員登入</title></head>
-<body>
-    <h1>登入系統</h1>
-    <input type="email" id="email" placeholder="請輸入信箱"><br>
-    <input type="password" id="password" placeholder="請輸入密碼"><br>
-    <button onclick="login()">登入</button>
+{% extends "layout.html" %}
+{% block content %}
 
-    <script>
-        function login() {
-            fetch('/api/login', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    email: document.getElementById('email').value,
-                    password: document.getElementById('password').value
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.message) {
-                    alert('登入成功');
-                    window.location.href = '/'; // 登入後回首頁
-                } else {
-                    alert('失敗: ' + data.error);
-                }
-            });
-        }
-    </script>
+<div class="row justify-content-center" style="margin-top: 50px;">
+    <div class="col-md-5">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h4 class="mb-0">會員登入</h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="/login">
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">帳號 (Email)</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
 
-    <br>
-    <br>
-    <a href="/">回首頁</a>
+                    <div class="mb-4">
+                        <label for="password" class="form-label">密碼 (Password)</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                    </div>
 
-</body>
-</html>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-dark btn-lg">登入</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center text-muted">
+                還沒有帳號？ <a href="/register" class="text-decoration-none">立即註冊</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
