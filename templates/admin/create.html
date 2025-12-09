@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>新增展覽</h2>
+<div class="card p-4 shadow-sm mt-3">
+    <form method="POST">
+        <div class="mb-3">
+            <label class="form-label">主辦單位 (可以直接輸入新的)</label>
+            <input type="text" name="organizer_name" class="form-control" list="org_list" placeholder="請輸入主辦單位名稱" required>
+
+            <datalist id="org_list">
+                {% for org in organizers %}
+                <option value="{{ org.name }}">
+                {% endfor %}
+            </datalist>
+        </div>
+
+        <div class="mb-3">
+            <label>展覽標題</label>
+            <input type="text" name="title" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>地點</label>
+            <input type="text" name="location" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label>日期區間</label>
+            <div class="input-group">
+                <input type="date" name="start_date" class="form-control" required>
+                <span class="input-group-text">至</span>
+                <input type="date" name="end_date" class="form-control" required>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label>詳細說明</label>
+            <textarea name="description" class="form-control" rows="4"></textarea>
+        </div>
+        <div class="mb-3">
+            <label>狀態</label>
+            <select name="status" class="form-select">
+                <option value="Draft">草稿 (前台看不到)</option>
+                <option value="Published">立即上架</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label>核銷碼 (PIN)</label>
+            <input type="text" name="validation_pin" class="form-control" value="1234">
+        </div>
+
+        <button type="submit" class="btn btn-primary">下一步：設定場次與票價</button>
+        <a href="/admin" class="btn btn-secondary">取消</a>
+    </form>
+</div>
+{% endblock %}

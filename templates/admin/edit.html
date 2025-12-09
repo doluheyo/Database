@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>編輯展覽</h2>
+<div class="card p-4 shadow-sm mt-3">
+    <form method="POST">
+        
+        <div class="mb-3">
+            <label class="form-label text-muted">主辦單位</label>
+            <input type="text" class="form-control" value="{{ ex.organizer_name }}" disabled>
+            <div class="form-text">若需變更主辦單位，請重新建立展覽。</div>
+        </div>
+
+        <div class="mb-3">
+            <label>展覽標題</label>
+            <input type="text" name="title" class="form-control" value="{{ ex.title }}" required>
+        </div>
+        <div class="mb-3">
+            <label>地點</label>
+            <input type="text" name="location" class="form-control" value="{{ ex.location }}" required>
+        </div>
+        <div class="mb-3">
+            <label>日期區間</label>
+            <div class="input-group">
+                <input type="date" name="start_date" class="form-control" value="{{ ex.start_date }}" required>
+                <span class="input-group-text">至</span>
+                <input type="date" name="end_date" class="form-control" value="{{ ex.end_date }}" required>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label>詳細說明</label>
+            <textarea name="description" class="form-control" rows="6">{{ ex.description }}</textarea>
+        </div>
+        
+        <div class="mb-3">
+            <label class="fw-bold">狀態 (控制是否顯示在前台)</label>
+            <select name="status" class="form-select border-primary">
+                <option value="Draft" {% if ex.status == 'Draft' %}selected{% endif %}>草稿 (隱藏)</option>
+                <option value="Published" {% if ex.status == 'Published' %}selected{% endif %}>上架 (公開)</option>
+                <option value="Ended" {% if ex.status == 'Ended' %}selected{% endif %}>已結束</option>
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label>核銷碼 (PIN)</label>
+            <input type="text" name="validation_pin" class="form-control" value="{{ ex.validation_pin }}">
+        </div>
+
+        <div class="d-flex justify-content-between mt-4">
+            <a href="/admin" class="btn btn-secondary">取消返回</a>
+            <button type="submit" class="btn btn-primary px-5">儲存修改</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

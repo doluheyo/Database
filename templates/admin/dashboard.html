@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold"><i class="bi bi-speedometer2 text-primary"></i> 後台管理系統</h2>
+    <a href="/admin/create" class="btn btn-success shadow-sm">
+        <i class="bi bi-plus-lg"></i> 新增展覽
+    </a>
+</div>
+
+<div class="card shadow border-0 rounded-4 overflow-hidden">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col" class="ps-4 py-3">ID</th>
+                    <th scope="col" class="py-3">展覽名稱</th>
+                    <th scope="col" class="py-3">狀態</th>
+                    <th scope="col" class="py-3">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ex in exhibitions %}
+                <tr>
+                    <td class="ps-4 text-muted">#{{ ex.exhibition_id }}</td>
+
+                    <td>
+                        <div class="fw-bold text-dark fs-5">{{ ex.title }}</div>
+                        <div class="small text-muted">
+                            <i class="bi bi-geo-alt"></i> {{ ex.location }}
+                            <span class="mx-1">|</span>
+                            <i class="bi bi-calendar"></i> {{ ex.start_date }}
+                        </div>
+                    </td>
+
+                    <td>
+                        {% if ex.status == 'Published' %}
+                            <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-10 rounded-pill px-3 py-2">
+                                <i class="bi bi-check-circle-fill me-1"></i> 上架中
+                            </span>
+                        {% elif ex.status == 'Draft' %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-10 rounded-pill px-3 py-2">
+                                <i class="bi bi-file-earmark me-1"></i> 草稿
+                            </span>
+                        {% elif ex.status == 'Ended' %}
+                            <span class="badge bg-dark bg-opacity-10 text-dark border border-dark border-opacity-10 rounded-pill px-3 py-2">
+                                <i class="bi bi-stop-circle me-1"></i> 已結束
+                            </span>
+                        {% else %}
+                            <span class="badge bg-light text-dark border">{{ ex.status }}</span>
+                        {% endif %}
+                    </td>
+
+                    <td>
+                        <div class="btn-group" role="group">
+                            <a href="/admin/edit/{{ ex.exhibition_id }}" class="btn btn-sm btn-outline-primary" title="編輯基本資料">
+                                <i class="bi bi-pencil-square"></i> 編輯
+                            </a>
+
+                            <a href="/admin/manage/{{ ex.exhibition_id }}" class="btn btn-sm btn-outline-dark" title="設定場次與票價">
+                                <i class="bi bi-gear"></i> 設定
+                            </a>
+
+                            <a href="/exhibition/{{ ex.exhibition_id }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="前台預覽">
+                                <i class="bi bi-eye"></i> 預覽
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center py-5 text-muted">
+                        <div class="fs-1 mb-3">📂</div>
+                        <p class="mb-0">目前沒有任何展覽資料</p>
+                        <a href="/admin/create" class="btn btn-link text-decoration-none">立即新增第一場展覽</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

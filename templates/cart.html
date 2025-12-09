@@ -1,0 +1,61 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2 class="mb-4">🛒 我的購物車</h2>
+
+{% if cart %}
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col" class="ps-4">展覽名稱</th>
+                        <th scope="col">場次時間</th>
+                        <th scope="col">票種</th>
+                        <th scope="col" class="text-end pe-4">價格</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in cart %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-primary">{{ item.exhibition_title }}</td>
+                        <td>{{ item.session_time_str }}</td>
+                        <td><span class="badge bg-secondary">{{ item.ticket_name }}</span></td>
+                        <td class="text-end pe-4">${{ item.price | int }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="table-dark">
+                        <td colspan="3" class="text-end fs-5 pt-3">總金額：</td>
+                        <td class="text-end fs-4 fw-bold pe-4 text-warning pt-3">${{ total | int }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        <a href="/clear_cart" class="btn btn-outline-danger" onclick="return confirm('確定要清空購物車嗎？');">
+            🗑️ 清空購物車
+        </a>
+
+        <div class="d-flex gap-2">
+            <a href="/" class="btn btn-outline-secondary btn-lg">繼續選購</a>
+
+            <form action="/checkout" method="POST">
+                <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                    💳 確認結帳
+                </button>
+            </form>
+        </div>
+    </div>
+{% else %}
+    <div class="text-center py-5">
+        <div class="display-1 text-muted mb-3">🛒</div>
+        <h3>購物車目前是空的</h3>
+        <p class="text-muted">快去挑選喜歡的展覽吧！</p>
+        <a href="/" class="btn btn-primary mt-3">前往展覽列表</a>
+    </div>
+{% endif %}
+
+{% endblock %}

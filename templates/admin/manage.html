@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-3">
+    <a href="/admin" class="text-decoration-none">&larr; 返回列表</a>
+</div>
+<h2>管理展覽：{{ ex.title }}</h2>
+<p class="text-muted">在這裡設定這場展覽的場次時間與票種價格。</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light fw-bold">📅 場次管理 (Sessions)</div>
+            <div class="card-body">
+                <ul class="list-group mb-3">
+                    {% for s in sessions %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ s.session_time }}</span>
+                        <span class="badge bg-secondary">限額: {{ s.capacity }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                
+                <hr>
+                <h6>新增場次</h6>
+                <form method="POST">
+                    <input type="hidden" name="add_session" value="1">
+                    <div class="mb-2">
+                        <label class="small">時間</label>
+                        <input type="datetime-local" name="session_time" class="form-control form-control-sm" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="small">人數上限</label>
+                        <input type="number" name="capacity" class="form-control form-control-sm" placeholder="例如: 100" required>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary w-100">新增場次</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light fw-bold">💵 票種管理 (Ticket Types)</div>
+            <div class="card-body">
+                <ul class="list-group mb-3">
+                    {% for t in ticket_types %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ t.name }}</span>
+                        <span class="fw-bold">${{ t.price }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <hr>
+                <h6>新增票種</h6>
+                <form method="POST">
+                    <input type="hidden" name="add_ticket_type" value="1">
+                    <div class="mb-2">
+                        <label class="small">票種名稱</label>
+                        <input type="text" name="name" class="form-control form-control-sm" placeholder="例如: 全票" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="small">價格</label>
+                        <input type="number" name="price" class="form-control form-control-sm" placeholder="例如: 500" required>
+                    </div>
+                    <button class="btn btn-sm btn-outline-success w-100">新增票種</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
