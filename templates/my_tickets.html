@@ -152,7 +152,7 @@
             if (data.success) {
                 // A. 驗證成功
                 validationModal.hide();
-                alert("✅ " + data.message);
+                alert( data.message);
 
                 // 更新按鈕狀態 (免重新整理)
                 const btn = document.getElementById('btn-' + currentUuid);
@@ -169,7 +169,7 @@
                 }
             } else {
                 // B. 驗證失敗
-                errorMsg.innerText = "❌ " + data.message;
+                errorMsg.innerText = data.message;
                 pinInput.classList.add('is-invalid');
                 pinInput.value = ''; // 清空錯誤密碼
                 pinInput.focus();
