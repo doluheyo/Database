@@ -265,7 +265,7 @@ def detail(id):
                     cart.append(item_template.copy())
 
                 session['cart'] = cart
-                flash(f'已將 {quantity} 張票加入購物車 🛒')
+                flash(f'已將 {quantity} 張票加入購物車')
                 return redirect(url_for('index'))
 
             # === GET: 顯示頁面 ===
