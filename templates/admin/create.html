@@ -2,7 +2,7 @@
 {% block content %}
 <h2>新增展覽</h2>
 <div class="card p-4 shadow-sm mt-3">
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <div class="mb-3">
             <label class="form-label">主辦單位 (可以直接輸入新的)</label>
             <input type="text" name="organizer_name" class="form-control" list="org_list" placeholder="請輸入主辦單位名稱" required>
@@ -34,6 +34,20 @@
             <label>詳細說明</label>
             <textarea name="description" class="form-control" rows="4"></textarea>
         </div>
+        
+        <!-- 圖片上傳區塊 -->
+        <div class="mb-3">
+            <label class="form-label fw-bold">展覽封面圖片</label>
+            <input type="file" name="exhibition_image" class="form-control" accept="image/*" id="imageInput">
+            <div class="form-text">支援 JPG、PNG、GIF、WebP 格式，檔案大小限制 16MB</div>
+            
+            <!-- 圖片預覽區 -->
+            <div id="imagePreview" class="mt-3" style="display: none;">
+                <p class="text-muted mb-2">圖片預覽：</p>
+                <img id="previewImg" src="" alt="預覽圖片" class="img-thumbnail" style="max-width: 300px; max-height: 200px;">
+            </div>
+        </div>
+        
         <div class="mb-3">
             <label>狀態</label>
             <select name="status" class="form-select">
@@ -50,4 +64,41 @@
         <a href="/admin" class="btn btn-secondary">取消</a>
     </form>
 </div>
+
+<script>
+// 圖片預覽功能
+document.getElementById('imageInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('imagePreview');
+    const previewImg = document.getElementById('previewImg');
+    
+    if (file) {
+        // 檢查檔案類型
+        if (!file.type.startsWith('image/')) {
+            alert('請選擇圖片檔案');
+            this.value = '';
+            preview.style.display = 'none';
+            return;
+        }
+        
+        // 檢查檔案大小 (16MB)
+        if (file.size > 16 * 1024 * 1024) {
+            alert('檔案大小不能超過 16MB');
+            this.value = '';
+            preview.style.display = 'none';
+            return;
+        }
+        
+        // 顯示預覽
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewImg.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    } else {
+        preview.style.display = 'none';
+    }
+});
+</script>
 {% endblock %}
