@@ -5,12 +5,64 @@ import qrcode
 import pyodbc
 import pymysql.cursors
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # 請修改為隨機字串以確保安全
 app.permanent_session_lifetime = timedelta(minutes=30)  # 設定閒置 30 分鐘自動登出
+
+# ==========================================
+# 圖片上傳設定
+# ==========================================
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'exhibitions')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+# 確保上傳資料夾存在
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 限制上傳檔案大小為 16MB
+
+
+def allowed_file(filename):
+    """檢查檔案副檔名是否允許"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def save_exhibition_image(file, exhibition_id=None):
+    """
+    儲存展覽圖片
+    回傳相對路徑 (用於存入資料庫)
+    """
+    if file and allowed_file(file.filename):
+        # 產生唯一檔名避免覆蓋
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        if exhibition_id:
+            filename = f"exhibition_{exhibition_id}_{uuid.uuid4().hex[:8]}.{ext}"
+        else:
+            filename = f"exhibition_{uuid.uuid4().hex}.{ext}"
+        
+        filename = secure_filename(filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        # 回傳相對路徑 (給前端用)
+        return f"/static/uploads/exhibitions/{filename}"
+    return None
+
+
+def delete_old_image(image_path):
+    """刪除舊圖片檔案"""
+    if image_path and image_path.startswith('/static/uploads/exhibitions/'):
+        filename = image_path.replace('/static/uploads/exhibitions/', '')
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                print(f"刪除舊圖片失敗: {e}")
 
 
 def get_db_connection():
@@ -289,13 +341,8 @@ def checkout():
                 order_id = int(result[0])
             else:
                 raise Exception("無法取得訂單 ID")
-
-            # 2. 建立支付紀錄
-            cursor.execute(
-                "INSERT INTO Payments (order_id, payment_method, amount, status) VALUES (?, 'Credit Card', ?, 'Success')",
-                (order_id, total_amount))
-
-            # 3. 處理每一張票 (扣庫存 + 建票)
+                
+            # 2. 處理每一張票 (扣庫存 + 建票)
             for item in cart:
                 session_id = item['session_id']
                 ticket_type_id = item['ticket_type_id']
@@ -430,7 +477,7 @@ def admin_dashboard():
         conn.close()
 
 
-# --- 新增展覽 (自動新增主辦單位) ---
+# --- 新增展覽 (自動新增主辦單位 + 圖片上傳) ---
 @app.route('/admin/create', methods=['GET', 'POST'])
 def admin_create_exhibition():
     if not is_admin(): return redirect(url_for('index'))
@@ -450,10 +497,19 @@ def admin_create_exhibition():
                     cursor.execute("SET NOCOUNT ON; INSERT INTO Organizers (name) VALUES (?); SELECT SCOPE_IDENTITY()", (org_name,))
                     organizer_id = int(cursor.fetchone()[0])  # 用 fetchone() 取 ID
 
-                # 2. 新增展覽
+# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------
+                # 2. 處理圖片上傳
+                image_path = None
+                if 'exhibition_image' in request.files:
+                    file = request.files['exhibition_image']
+                    if file and file.filename != '':
+                        image_path = save_exhibition_image(file)
+# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------            
+
+                # 3. 新增展覽
                 cursor.execute("""
-                    INSERT INTO Exhibitions (organizer_id, title, location, description, start_date, end_date, status, validation_pin)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO Exhibitions (organizer_id, title, location, description, start_date, end_date, status, validation_pin, image_path)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     organizer_id,
                     request.form['title'],
@@ -462,20 +518,22 @@ def admin_create_exhibition():
                     request.form['start_date'],
                     request.form['end_date'],
                     request.form['status'],
-                    request.form.get('validation_pin', '1234')
+                    request.form.get('validation_pin', '1234'),
+                    image_path
                 ))
                 conn.commit()
                 flash(f'新增成功 (主辦: {org_name})')
                 return redirect(url_for('admin_dashboard'))
 
             cursor.execute("SELECT * FROM Organizers")
-            organizers = cursor.fetchall()
+            rows = cursor.fetchall()
+            organizers = [to_dict(cursor, row) for row in rows]
             return render_template('admin/create.html', organizers=organizers)
     finally:
         conn.close()
 
 
-# --- 編輯展覽 (修改內容與上下架) ---
+# --- 編輯展覽 (修改內容與上下架 + 圖片更新) ---
 @app.route('/admin/edit/<int:id>', methods=['GET', 'POST'])
 def admin_edit_exhibition(id):
     if not is_admin(): return redirect(url_for('index'))
@@ -485,15 +543,40 @@ def admin_edit_exhibition(id):
         with conn.cursor() as cursor:
             # POST: 更新資料
             if request.method == 'POST':
+# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------
+                # 1. 取得目前的圖片路徑
+                cursor.execute("SELECT image_path FROM Exhibitions WHERE exhibition_id = ?", (id,))
+                current = cursor.fetchone()
+                old_image_path = current[0] if current else None
+                
+                # 2. 處理圖片上傳
+                new_image_path = old_image_path  # 預設保留原圖
+                
+                # 檢查是否要刪除現有圖片
+                if request.form.get('delete_image') == '1':
+                    delete_old_image(old_image_path)
+                    new_image_path = None
+                
+                # 檢查是否有上傳新圖片
+                if 'exhibition_image' in request.files:
+                    file = request.files['exhibition_image']
+                    if file and file.filename != '':
+                        # 刪除舊圖
+                        delete_old_image(old_image_path)
+                        # 儲存新圖
+                        new_image_path = save_exhibition_image(file, id)
+# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------                        
+                
+                # 3. 更新資料庫
                 cursor.execute("""
                     UPDATE Exhibitions 
                     SET title=?, location=?, description=?, 
-                        start_date=?, end_date=?, status=?, validation_pin=?
+                        start_date=?, end_date=?, status=?, validation_pin=?, image_path=?
                     WHERE exhibition_id=?
                 """, (
                     request.form['title'], request.form['location'], request.form['description'],
                     request.form['start_date'], request.form['end_date'], request.form['status'],
-                    request.form['validation_pin'], id
+                    request.form['validation_pin'], new_image_path, id
                 ))
                 conn.commit()
                 flash('展覽修改成功！')
