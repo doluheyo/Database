@@ -142,9 +142,15 @@ def register():
         password = request.form.get('password')
         phone = request.form.get('phone')
 
-        if not name or not email or not password:
+        if not name or not email or not password or not phone:
             flash('請填寫完整資訊')
             return redirect(url_for('register'))
+
+        # 檢查電話號碼格式，必須是10位
+        if phone:
+            if not phone.isdigit() or len(phone) != 10:
+                flash('註冊失敗：電話號碼必須是 10 位數字')
+                return redirect(url_for('register'))
 
         hashed_pw = generate_password_hash(password)
 
@@ -710,4 +716,4 @@ def admin_manage_exhibition(id):
 if __name__ == '__main__':
     # host='0.0.0.0' 表示監聽這台機器所有的 IP (包含外網 IP)
     # port=5000 是網站運作的埠號
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
