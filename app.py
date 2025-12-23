@@ -607,6 +607,54 @@ def admin_edit_exhibition(id):
         conn.close()
 
 
+# --- 刪除展覽 ---
+@app.route('/admin/delete/<int:id>', methods=['POST'])
+def admin_delete_exhibition(id):
+    if not is_admin(): return redirect(url_for('index'))
+
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cursor:
+            # 1. 先取得展覽圖片路徑，稍後刪除檔案
+            cursor.execute("SELECT image_path FROM Exhibitions WHERE exhibition_id = ?", (id,))
+            result = cursor.fetchone()
+            image_path = result[0] if result else None
+
+            # 2. 刪除相關聯的資料 (注意外鍵順序)
+            # 2.1 先刪除票券 (Tickets 關聯 Sessions 和 TicketTypes)
+            cursor.execute("""
+                DELETE FROM Tickets 
+                WHERE session_id IN (SELECT session_id FROM Sessions WHERE exhibition_id = ?)
+                   OR ticket_type_id IN (SELECT ticket_type_id FROM TicketTypes WHERE exhibition_id = ?)
+            """, (id, id))
+            
+            # 2.2 刪除場次
+            cursor.execute("DELETE FROM Sessions WHERE exhibition_id = ?", (id,))
+            
+            # 2.3 刪除票種
+            cursor.execute("DELETE FROM TicketTypes WHERE exhibition_id = ?", (id,))
+            
+            # 3. 刪除展覽本身
+            cursor.execute("DELETE FROM Exhibitions WHERE exhibition_id = ?", (id,))
+            
+            conn.commit()
+            
+            # 4. 刪除圖片檔案
+            if image_path:
+                delete_old_image(image_path)
+            
+            flash('展覽已成功刪除！')
+            
+    except Exception as e:
+        conn.rollback()
+        flash(f'刪除失敗: {e}')
+        print(f"刪除展覽錯誤: {e}")
+    finally:
+        conn.close()
+    
+    return redirect(url_for('admin_dashboard'))
+
+
 # --- 管理展覽細項 (場次與票種) ---
 @app.route('/admin/manage/<int:id>', methods=['GET', 'POST'])
 def admin_manage_exhibition(id):
