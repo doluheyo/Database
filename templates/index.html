@@ -6,7 +6,7 @@
      style="background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80'); background-size: cover; background-position: center;">
     <div class="py-5 px-3">
         <h1 class="display-4 fw-bold">探索你的下一場冒險</h1>
-        <p class="col-md-8 fs-5 text-white-50">精選全台最熱門的藝術展覽、科技論壇與演唱會。立即預訂，輕鬆入場。</p>
+        <p class="col-md-8 fs-5 text-white-50">精選全台最熱門的各類展覽。立即預訂，輕鬆入場。</p>
         <a href="#exhibition-list" class="btn btn-primary btn-lg mt-3 px-4 shadow-sm border-0">
             瀏覽展覽 <i class="bi bi-arrow-down-short"></i>
         </a>
@@ -52,10 +52,18 @@
         <div class="card h-100 hover-card shadow-sm border-0">
             <!-- 圖片區：如果過期，圖片加上灰階濾鏡效果 -->
             <div class="position-relative overflow-hidden">
+                <!-- ★ 優先使用上傳的圖片，若無則使用隨機圖片 -->
+                {% if ex.image_path %}
+                <img src="{{ ex.image_path }}"
+                     class="card-img-top {{ 'grayscale-img' if is_expired else '' }}"
+                     alt="{{ ex.title }}"
+                     style="height: 200px; object-fit: cover;">
+                {% else %}
                 <img src="https://picsum.photos/seed/{{ ex.exhibition_id }}/400/250"
                      class="card-img-top {{ 'grayscale-img' if is_expired else '' }}"
-                     alt="Exhibition Image"
+                     alt="{{ ex.title }}"
                      style="height: 200px; object-fit: cover;">
+                {% endif %}
 
                 <!-- 狀態標籤 (Badge) -->
                 <div class="position-absolute top-0 start-0 m-3">
