@@ -13,13 +13,11 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)  # 請修改為隨機字串以確保安全
 app.permanent_session_lifetime = timedelta(minutes=30)  # 設定閒置 30 分鐘自動登出
 
-# ==========================================
 # 圖片上傳設定
-# ==========================================
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads', 'exhibitions')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
-# 確保上傳資料夾存在
+# 確保上傳圖片的資料夾存在
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -506,14 +504,12 @@ def admin_create_exhibition():
                     cursor.execute("SET NOCOUNT ON; INSERT INTO Organizers (name) VALUES (?); SELECT SCOPE_IDENTITY()", (org_name,))
                     organizer_id = int(cursor.fetchone()[0])  # 用 fetchone() 取 ID
 
-# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------
                 # 2. 處理圖片上傳
                 image_path = None
                 if 'exhibition_image' in request.files:
                     file = request.files['exhibition_image']
                     if file and file.filename != '':
-                        image_path = save_exhibition_image(file)
-# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------            
+                        image_path = save_exhibition_image(file)          
 
                 # 3. 新增展覽
                 cursor.execute("""
@@ -552,7 +548,6 @@ def admin_edit_exhibition(id):
         with conn.cursor() as cursor:
             # POST: 更新資料
             if request.method == 'POST':
-# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------
                 # 1. 取得目前的圖片路徑
                 cursor.execute("SELECT image_path FROM Exhibitions WHERE exhibition_id = ?", (id,))
                 current = cursor.fetchone()
@@ -573,8 +568,7 @@ def admin_edit_exhibition(id):
                         # 刪除舊圖
                         delete_old_image(old_image_path)
                         # 儲存新圖
-                        new_image_path = save_exhibition_image(file, id)
-# --------------------- 為了上傳展覽圖片功能而新增的 --------------------------                        
+                        new_image_path = save_exhibition_image(file, id)                     
                 
                 # 3. 更新資料庫
                 cursor.execute("""
