@@ -112,7 +112,7 @@
                         <button type="submit" id="addToCartBtn"
                                 class="btn {{ 'btn-secondary' if is_exhibition_expired else 'btn-warning' }} btn-lg shadow-sm fw-bold"
                                 {{ 'disabled' if is_exhibition_expired }}>
-                            {{ '展覽已結束' if is_exhibition_expired else '加入購物車 🛒' }}
+                            {{ '展覽已結束' if is_exhibition_expired else '加入購物車' }}
                         </button>
                     </div>
                 </form>
@@ -169,7 +169,7 @@
             btn.disabled = true;
             btn.className = "btn btn-secondary btn-lg fw-bold";
             btn.innerText = "場次已過期";
-            warning.innerText = "❌ 時間已過";
+            warning.innerText = "時間已過";
             warning.className = "ms-3 small fw-bold text-danger";
             qtyInput.value = 0;
             qtyInput.disabled = true;
@@ -189,13 +189,13 @@
             btn.className = "btn btn-secondary btn-lg fw-bold";
             btn.innerText = "已售完 (Sold Out)";
             qtyInput.value = 0;
-            warning.innerText = "❌ 已額滿";
+            warning.innerText = "已額滿";
             warning.className = "ms-3 small fw-bold text-danger";
         } else {
             btn.disabled = false;
             btn.className = "btn btn-warning btn-lg shadow-sm fw-bold";
-            btn.innerText = "加入購物車 🛒";
-            warning.innerText = "✅ 剩餘 " + capacity + " 張";
+            btn.innerText = "加入購物車";
+            warning.innerText = "剩餘 " + capacity + " 張";
             warning.className = "ms-3 small fw-bold text-success";
 
             validateQty();

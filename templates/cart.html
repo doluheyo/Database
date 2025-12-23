@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2 class="mb-4">🛒 我的購物車</h2>
+<h2 class="mb-4">我的購物車</h2>
 
 {% if cart %}
     <div class="card shadow-sm">
@@ -36,7 +36,7 @@
 
     <div class="d-flex justify-content-between align-items-center mt-4">
         <a href="/clear_cart" class="btn btn-outline-danger" onclick="return confirm('確定要清空購物車嗎？');">
-            🗑️ 清空購物車
+            清空購物車
         </a>
 
         <div class="d-flex gap-2">
@@ -44,7 +44,7 @@
 
             <form action="/checkout" method="POST">
                 <button type="submit" class="btn btn-success btn-lg px-5 shadow">
-                    💳 確認結帳
+                    確認結帳
                 </button>
             </form>
         </div>
