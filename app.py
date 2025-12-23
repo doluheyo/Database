@@ -110,11 +110,20 @@ def index():
         with conn.cursor() as cursor:
             if keyword:
                 # 搜尋標題或地點
-                sql = "SELECT * FROM Exhibitions WHERE status = 'Published' AND (title LIKE ? OR location LIKE ?)"
+                sql = """
+                    SELECT * FROM Exhibitions 
+                    WHERE status IN ('Published', 'Ended') AND (title LIKE ? OR location LIKE ?)
+                    ORDER BY CASE WHEN status = 'Ended' THEN 1 ELSE 0 END, start_date DESC
+                """
                 search_term = f"%{keyword}%"
                 cursor.execute(sql, (search_term, search_term))
             else:
-                cursor.execute("SELECT * FROM Exhibitions WHERE status = 'Published'")
+                # 顯示所有上架中與已結束的展覽 (過期的排最後)
+                cursor.execute("""
+                    SELECT * FROM Exhibitions 
+                    WHERE status IN ('Published', 'Ended') 
+                    ORDER BY CASE WHEN status = 'Ended' THEN 1 ELSE 0 END, start_date DESC
+                """)
 
             rows = cursor.fetchall()
             # ★ 補上轉換邏輯：將 List of Tuples 轉為 List of Dicts
