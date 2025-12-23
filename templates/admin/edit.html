@@ -45,7 +45,7 @@
                         <div class="form-check">
                             <input type="checkbox" name="delete_image" value="1" class="form-check-input" id="deleteImage">
                             <label class="form-check-label text-danger" for="deleteImage">
-                                <i class="bi bi-trash"></i> 刪除此圖片
+                                刪除此圖片
                             </label>
                         </div>
                         <small class="text-muted d-block mt-2">勾選後儲存將刪除現有圖片</small>
@@ -91,9 +91,47 @@
 
         <div class="d-flex justify-content-between mt-4">
             <a href="/admin" class="btn btn-secondary">取消返回</a>
-            <button type="submit" class="btn btn-primary px-5">儲存修改</button>
+            <div class="d-flex gap-2">
+                <!-- 刪除展覽按鈕 -->
+                <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                    刪除展覽
+                </button>
+                <button type="submit" class="btn btn-primary px-5">儲存修改</button>
+            </div>
         </div>
     </form>
+</div>
+
+<!-- 刪除確認 Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>確認刪除展覽
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">您確定要刪除以下展覽嗎？</p>
+                <div class="alert alert-warning py-2">
+                    <strong>{{ ex.title }}</strong>
+                </div>
+                <p class="text-danger mb-0">
+                    <i class="bi bi-exclamation-circle me-1"></i>
+                    <strong>注意：</strong>此操作將會同時刪除該展覽的所有場次、票種及相關票券，且無法復原！
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <form action="/admin/delete/{{ ex.exhibition_id }}" method="POST" class="d-inline">
+                    <button type="submit" class="btn btn-danger">
+                        確認刪除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
