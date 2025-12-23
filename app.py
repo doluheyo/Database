@@ -235,17 +235,17 @@ def detail(id):
                 row = cursor.fetchone()
                 if row: row = to_dict(cursor, row)  # 一行搞定轉換
                 else:
-                    flash("❌ 錯誤：找不到場次資訊")
+                    flash("錯誤：找不到場次資訊")
                     return redirect(request.url)
 
                 # 1. 檢查展覽是否已結束
                 if row['end_date'] < datetime.now().date():
-                    flash("❌ 很抱歉，此展覽活動已完全結束，無法購票！")
+                    flash("很抱歉，此展覽活動已完全結束，無法購票！")
                     return redirect(request.url)
 
                 # 2. 檢查場次時間是否已過
                 if row['session_time'] < datetime.now():
-                    flash("❌ 錯誤：該場次時間已過，無法購買！")
+                    flash("錯誤：該場次時間已過，無法購買！")
                     return redirect(request.url)
 
                 # 建立商品物件
